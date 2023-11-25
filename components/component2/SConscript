@@ -7,7 +7,7 @@ with open(env['PROJECT_TOOL_S']) as f:
 
 
 if 'CONFIG_COMPONENT2_ENABLED' in os.environ:
-    SRCS=[AGlob('src/*.c*')]
+    SRCS=AGlob('src/*.c*')
     # SRCS = ['source1.cpp', 'source2.cpp']
     INCLUDE=[ADir('include')]
     PRIVATE_INCLUDE=[ADir('include_private')]

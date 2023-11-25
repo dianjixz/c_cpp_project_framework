@@ -10,13 +10,19 @@ with open(env['PROJECT_TOOL_S']) as f:
 SRCS = Glob('src/*.c*')
 INCLUDE = [ADir('include'), '.']
 PRIVATE_INCLUDE = []
-REQUIREMENTS = ['pthread', 'component1', 'component2']
+REQUIREMENTS = ['pthread', 'component1']
 STATIC_LIB = []
 DYNAMIC_LIB = []
 DEFINITIONS = []
 DEFINITIONS_PRIVATE = []
 LDFLAGS = []
 LINK_SEARCH_PATH = []
+
+if 'CONFIG_COMPONENT2_ENABLED' in os.environ:
+    REQUIREMENTS.append('component2')
+if 'CONFIG_COMPONENT3_ENABLED' in os.environ:
+    REQUIREMENTS.append('component3')
+
 
 env['COMPONENTS'].append({'target':env['PROJECT_NAME'],
                           'SRCS':SRCS,
