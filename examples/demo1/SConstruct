@@ -1,8 +1,6 @@
 # SConstruct
 from pathlib import Path
 import os, sys, shutil
-from anytree import Node, RenderTree, findall
-from anytree.iterators import PostOrderIter
 import copy
 from SCons.Node.FS import File
 import subprocess
@@ -96,11 +94,10 @@ with open(str(Path(PROJECT_PATH)/'build'/'config'/'global_config.mk'), 'r') as f
 # Set the compiler and flags (modify as needed)
 # env = Environment(platform='posix')
 # env = Environment(tools=['gcc','link', 'g++', ''])
-env = Environment(tools=['gcc', 'link', 'ar'])
-# env = Environment()
-env.Append(CPPPATH=[str(Path(PROJECT_PATH)/'build'/'config')])
+
 
 if sys.platform.startswith('win'):
+    env = Environment(tools=['gcc', 'link', 'ar', 'g++', 'as'])
     if os.environ.get('CONFIG_TOOLCHAIN_PREFIX') is not None:
         if os.environ['CONFIG_TOOLCHAIN_PREFIX']:
             env['CC'] = str(Path(os.environ['CONFIG_TOOLCHAIN_PATH'].strip('"'))  / str(os.environ['CONFIG_TOOLCHAIN_PREFIX'].strip('"') + 'gcc.exe')) 
@@ -113,6 +110,7 @@ if sys.platform.startswith('win'):
             env['ENV']['PATH'] = os.environ['CONFIG_TOOLCHAIN_PATH'].strip('"') + ';' + env['ENV']['PATH']
         
 elif sys.platform.startswith('linux'):
+    env = Environment()
     if os.environ.get('CONFIG_TOOLCHAIN_PREFIX') is not None:
         if os.environ['CONFIG_TOOLCHAIN_PREFIX']:
             env['CC'] = os.environ['CONFIG_TOOLCHAIN_PREFIX'].strip('"') + 'gcc'
@@ -127,7 +125,7 @@ elif sys.platform.startswith('linux'):
 else:
     print('未知的操作系统')
 
-# env['ENV']['PATH'] = 'C:\\WINDOWS\\System32;F:\\aapstar\\gcc\\mingw32\\bin'
+env.Append(CPPPATH=[str(Path(PROJECT_PATH)/'build'/'config')])
 
 print(env['ENV']['PATH'])
 
@@ -184,16 +182,8 @@ async def _commpile(task):
 
     build_env = env.Clone()
     OBJS = []
-
-
-
-
     print(task_lists[task['target']]['REQUIREMENTS'] + task_lists[task['target']]['STATIC_LIB'] + task_lists[task['target']]['DYNAMIC_LIB'])
-    # _LIBS = list(set(task_lists[task['target']]['REQUIREMENTS'] + task_lists[task['target']]['STATIC_LIB'] + task_lists[task['target']]['DYNAMIC_LIB']))
-    # _LIBPATH = list(set(task_lists[task['target']]['LINK_SEARCH_PATH']))
-    # _CCFLAGS = list(set(task_lists[task['target']]['DEFINITIONS_PRIVATE'] + task_lists[task['target']]['DEFINITIONS']))
-    # _CPPPATH = list(set(task_lists[task['target']]['INCLUDE'] + task_lists[task['target']]['PRIVATE_INCLUDE']))
-    # _LINKFLAGS = list(set(task_lists[task['target']]['LDFLAGS']))
+
     reduse = lambda value: sorted(set(value),key=value.index)
     _LIBS = reduse(task_lists[task['target']]['REQUIREMENTS'] + task_lists[task['target']]['STATIC_LIB'] + task_lists[task['target']]['DYNAMIC_LIB'])
     _LIBPATH = reduse(task_lists[task['target']]['LINK_SEARCH_PATH'])
@@ -220,8 +210,6 @@ async def _commpile(task):
         if not os.path.exists(component_dir):
             os.mkdir(component_dir)
         
-
-
         for sfile in task_lists[task['target']]['SRCS']:
             if isinstance(sfile, str) or isinstance(sfile, File):
                 file = str(sfile)
@@ -234,18 +222,35 @@ async def _commpile(task):
             ofile = str(Path(component_dir)/ofile) + '.o'
             OBJS.append(build_env.Object(target = ofile, source = file))
 
-
-
         component=build_env.Program(target=str(Path('build')/task['target']), source=OBJS)
         # print(build_env.Dump())
         task_lists[task['target']]['COMPONENT'] = component
+        build_env.Command(os.path.join('dist', task['target']), str(Path('build')/task['target']), action=[Mkdir("dist"), Copy("$TARGET", "$SOURCE")])
+
+        def find_file_in_directories(directories, target_file):
+            for directory in directories:
+                result = search_file_recursive(directory, target_file)
+                if result:
+                    return result
+            return None
+
+        def search_file_recursive(directory, target_file):
+            for root, dirs, files in os.walk(directory):
+                if target_file in files:
+                    return os.path.join(root, target_file)
+            return None
+        for obj in _LIBS:
+            if '.so' in obj:
+                result = find_file_in_directories(_LIBPATH, obj)
+                if result:
+                    build_env.Command(result, str(Path('build')/os.path.basename(result)), action=[Mkdir("dist"), Copy("$TARGET", "$SOURCE")])
+
     elif task['REGISTER'] == 'static':
         component_dir = task['target']
         component_dir = str(Path('build')/component_dir)
         if not os.path.exists(component_dir):
             os.mkdir(component_dir)
-
-
+        
         for sfile in task_lists[task['target']]['SRCS']:
             if isinstance(sfile, str) or isinstance(sfile, File):
                 file = str(sfile)
@@ -257,7 +262,6 @@ async def _commpile(task):
             
             ofile = str(Path(component_dir)/ofile) + '.o'
             OBJS.append(build_env.Object(target = ofile, source = file))
-        # print(build_env.__dic__)
         component=build_env.Library(target=str(Path('build')/task['target']/task['target']), source=OBJS)
 
     elif task['REGISTER'] == 'shared':

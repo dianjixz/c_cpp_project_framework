@@ -6,17 +6,26 @@ def AFile(file):
 def AGlob(path):
     return Glob(os.path.join(env['component_dir'], path))
 
-def append_srcs_dir(*directories):
+def append_srcs_dir(directories):
     source_files = []
     import os
-    supported_extensions = ['.c', '.cpp', '.S']
+    from collections.abc import Iterable
 
-    for directory in directories:
+    # 支持的源码文件扩展名
+    supported_extensions = ['.c', '.cpp', '.S']  # 可根据需要添加其他扩展名
+    # if isinstance(sfile, list):
+    def _find_file(path):
+        directory = str(path)
         for root, dirs, files in os.walk(directory):
             for file in files:
                 _, file_extension = os.path.splitext(file)
                 if file_extension in supported_extensions:
                     source_files.append(os.path.join(root, file))
+    if isinstance(directories, Iterable):
+        for directory in directories:
+            _find_file(directory)
+    else:
+        _find_file(directories)
 
     return source_files
 
